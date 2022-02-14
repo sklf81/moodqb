@@ -1,4 +1,4 @@
-#define RBOW_SIZE 50
+/*#define RBOW_SIZE 50
 #define MAX_DELAY_MS 100
 #define TOGGLE_DELAY_MS 10
 
@@ -25,7 +25,7 @@ byte mode = 0;
 long unsigned int last_toggle = 0;
 long unsigned int last_change = 0;
 
-byte colorchange_delay;
+byte colorchange_delay_us;
 byte color_ctr = 0;
 byte msg_ctr = 0;
 
@@ -90,14 +90,14 @@ void loop(){
 		break;
 
 		case 4:
-      if(millis() - last_change > (colorchange_delay <= 3*MAX_DELAY_MS/4) ? colorchange_delay : (10/3)){
+      if(micros() - last_change > (colorchange_delay <= BAUD_TRIGGER) ? colorchange_delay * 1000 : BAUD_PERIOD_US){
         msg_ctr = msg_ctr >= msg.length() ? 0 : msg_ctr + 1;
         
         setColor(&pwm_color, 
           msg[floor(msg_ctr / 8)] & (0x1 << (msg_ctr % 8)) ? 255 : 0,
           msg[floor(msg_ctr / 8)] & (0x2 << (msg_ctr % 8)) ? 255 : 0,
           msg[floor(msg_ctr / 8)] & (0x4 << (msg_ctr % 8)) ? 255 : 0);
-        last_change = millis();
+        last_change = micros();
       }
 			//SECRET
 		break;
@@ -115,3 +115,5 @@ void loop(){
   digitalWrite(G_PORT, d_time > pwm_color.g ? HIGH : LOW);
   digitalWrite(B_PORT, d_time > pwm_color.b ? HIGH : LOW);
 }
+
+*/

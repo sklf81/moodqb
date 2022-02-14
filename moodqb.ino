@@ -1,6 +1,4 @@
-#define RBOW_SIZE 50
-#define MAX_DELAY_MS 100
-#define TOGGLE_DELAY_MS 10
+#define TOGGLE_DELAY_MS 300
 
 #define R_PORT 0
 #define G_PORT 4
@@ -9,110 +7,114 @@
 #define ANALOG_IN 2   //PINS SIND IM LAYOUT FALSCH!
 #define TOGGLE_IN 1
 
-typedef struct _COLOR{
-	byte r;
-	byte g;
-	byte b;
-} COLOR;
-
-//COLOR-CODE: pwm_period_ms --> 255
-
-COLOR pwm_color;
-
-String msg = "SOPHIE<3";
-
 byte mode = 0;
+long unsigned int runtime = 0;
 long unsigned int last_toggle = 0;
 long unsigned int last_change = 0;
 
-byte colorchange_delay;
-byte color_ctr = 0;
-byte msg_ctr = 0;
+unsigned int colorchange_delay_ms = 0;
 
-//PWM
-int pwm_period_ms = 10;
-long unsigned int pwm_timer = 0;
-byte d_time;
-
-void changeColor(COLOR* output_color, COLOR input_color){
-	output_color->r = input_color.r;
-	output_color->g = input_color.g;
-	output_color->b = input_color.b; 
-}
-
-void setColor(COLOR* output_color, byte red, byte green, byte blue){
-	output_color->r = red;
-	output_color->g = green;
-	output_color->b = blue;
-}
+byte free_run = 0;
+byte change = 0;
+//byte red_delay, green_delay, blue_delay;
 
 void setup(){
 	DDRB = 0b00011001;
-  //ANALOG_READ DIGITALWRITE DIGITALREAD ALLES MIT PORT MANIPULATION!
+  ADMUX = 0b00100001;
+  ADCSRA |= 0b11000011; //Freerunning (BIT 6) Prescalar dicvision by 8 at 0:2
 }
 
 void loop(){
-	colorchange_delay = map(analogRead(ANALOG_IN), 0, 1024, 0, MAX_DELAY_MS);
-	if(digitalRead((TOGGLE_IN) == HIGH) && ((millis() - last_toggle) > TOGGLE_DELAY_MS)){
-		last_toggle = millis();
-		mode += 1;
+  ADCSRA |= (1 << ADSC);
+	colorchange_delay_ms = map(ADCH, 0, 255, 10, 1000);
+  byte input = PINB;
+  runtime = millis();
+	if(!(input & 2) && ((runtime - last_toggle) > TOGGLE_DELAY_MS)){
+		last_toggle = runtime;
+    if(free_run == 1){
+      free_run = 0;
+      mode = 0;
+    }
+    else if(mode == 7 && !free_run){
+      free_run = 1;
+      mode = 1;
+    }
+		else{
+		  mode = (mode == 7) ? 0 : mode + 1;
+		}
 	}
-	switch(mode){
+	switch (mode) {
 		case 0:
-      //Switch Color To Black
-      setColor(&pwm_color, 0, 0, 0);
-      mode += 1;
-		break;
-    case 1:
-      //Lights Out --> Black is static
-    break;
-		case 2:
-      //Rainbow
-			if(millis() - last_change > colorchange_delay){
-				color_ctr = color_ctr >= RBOW_SIZE ? 0 : color_ctr + 1;
-        byte value = (color_ctr / RBOW_SIZE) * pwm_period_ms;
-        switch(map(color_ctr, 0, RBOW_SIZE, 0, 3)){
-          case 0:
-            setColor(&pwm_color, pwm_period_ms - value, value, 0);
-            break;
-          case 1:
-            setColor(&pwm_color, 0, pwm_period_ms - value, value);
-            break;
-          case 2:
-            setColor(&pwm_color, value, 0, pwm_period_ms - value);
-            break;
-        }
-				last_change = millis();
-			}
-		break;
-
-		case 3:
-			//Color from RBOW as static		
-		break;
-
-		case 4:
-      if(millis() - last_change > (colorchange_delay <= 3*MAX_DELAY_MS/4) ? colorchange_delay : (10/3)){
-        msg_ctr = msg_ctr >= msg.length() ? 0 : msg_ctr + 1;
-        
-        setColor(&pwm_color, 
-          msg[floor(msg_ctr / 8)] & (0x1 << (msg_ctr % 8)) ? 255 : 0,
-          msg[floor(msg_ctr / 8)] & (0x2 << (msg_ctr % 8)) ? 255 : 0,
-          msg[floor(msg_ctr / 8)] & (0x4 << (msg_ctr % 8)) ? 255 : 0);
-        last_change = millis();
+      PORTB &= 0b11100110;
+      if(free_run && change){
+        mode += 1;
+        change = 0;
       }
-			//SECRET
 		break;
+		case 1:
+      //ROT
+      PORTB &= 0b11100111;
+      PORTB |= 0b00000001;
+      if(free_run && change){
+        mode += 1;
+        change = 0;
+      }
+		break;
+    case 2:
+      //GELB
+      PORTB &= 0b11101111;
+      PORTB |= 0b00001001;
+      if(free_run && change){
+        mode += 1;
+        change = 0;
+      }
+    break;
+		case 3:
+      //GRÜN
+      PORTB &= 0b11101110;
+      PORTB |= 0b00001000;  
+      if(free_run && change){
+        mode += 1;
+        change = 0;
+      } 
+		break;
+    case 4:
+      //CYAN
+      PORTB &= 0b11111110;
+      PORTB |= 0b00011000;
+      if(free_run && change){
+        change = 0;
+        mode += 1;
+      }
+    break;
+    case 5:
+      //BLAU
+      PORTB &= 0b11110110;
+      PORTB |= 0b00010000;
+      if(free_run && change){
+        change = 0;
+        mode += 1;
+      }
+    break;
+    case 6:
+      //MAGENTA
+      PORTB &= 0b11110111;
+      PORTB |= 0b00010001;
+      if(free_run && change){
+        change = 0;
+        mode = 1;
+      }
+    break;
+    case 7:
+      //WEISS
+      PORTB |= 0b00011001;
+    break;
 		default:
 			mode = 0;
 		break; 
 	}
-
-  //PWM
-  d_time = millis() - pwm_timer;
-  if(d_time >= pwm_period_ms){
-      pwm_timer = millis();
+  change = ((millis() - last_change) > colorchange_delay_ms) ? 1 : 0; 
+  if (change){
+    last_change = millis();
   }
-  digitalWrite(R_PORT, d_time > pwm_color.r ? HIGH : LOW);
-  digitalWrite(G_PORT, d_time > pwm_color.g ? HIGH : LOW);
-  digitalWrite(B_PORT, d_time > pwm_color.b ? HIGH : LOW);
 }
